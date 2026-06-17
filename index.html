@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Smart Meter Bill - PGVCL</title>
-    <!-- PDF.js library for scanning pages inside the browser -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         body { background-color: #f4f7fc; color: #333; padding-bottom: 30px; }
@@ -34,7 +34,7 @@
         .btn-print { background-color: #495057; color: white; }
         .btn-print:hover { background-color: #343a40; }
         .footer-text { text-align: center; font-size: 12px; color: #888; margin-top: 30px; line-height: 1.8; }
-        #loading { display: none; color: #1e3c72; font-weight: 500; margin-top: 10px; }
+        #loading { display: none; color: #1e3c72; font-weight: 500; margin-top: 10px; margin-bottom: 15px; text-align: center; }
     </style>
 </head>
 <body>
@@ -68,28 +68,24 @@
         
         <div id="loading">PDF Scan ho raha hai, kripya thoda intezar karein...</div>
 
-        <!-- Result Section -->
         <div class="result-card" id="resultCard">
             <div class="result-icon" id="resultIcon">📄</div>
             <div class="result-text" id="resultText">No bill extracted yet<br><span style="font-size:13px; font-weight:normal; color:#999;">Select PDF file and enter consumer number to search</span></div>
             
             <div class="action-buttons" id="actionButtons" style="display: none;">
-                <button class="btn btn-download" id="downloadBtn">📥 Download Bill</button>
-                <button class="btn btn-print" id="printBtn">🖨️ Print Bill</button>
+                <button class="btn btn-download" id="downloadBtn">📥 Download My Bill (1 Page)</button>
+                <button class="btn btn-print" id="printBtn">🖨️ Print My Bill (1 Page)</button>
             </div>
         </div>
     </div>
 
     <div class="footer-text">
-        Internal Tool • Fast server-side search for instant results<br>
-        Secure & Private • Minimal browser processing
+        Internal Tool • Fast client-side page extraction<br>
+        Secure & Private • Pure 1-page secure delivery
     </div>
 
     <script>
-        // Initialize PDF.js worker
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
-
-        let targetPageData = null;
 
         async function searchPDF() {
             const consumerNum = document.getElementById('consumerNumber').value.trim();
@@ -104,25 +100,21 @@
                 return;
             }
 
-            // Reset UI
             loadingDiv.style.display = 'block';
             actionButtons.style.display = 'none';
             resultCard.className = 'result-card';
             resultText.innerHTML = "Searching...";
 
             try {
-                // Load the master PDF file
                 const loadingTask = pdfjsLib.getDocument(pdfUrl);
                 const pdf = await loadingTask.promise;
                 let foundPage = -1;
 
-                // Scan through every page of the main PDF
                 for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
                     const page = await pdf.getPage(pageNum);
                     const textContent = await page.getTextContent();
                     const pageText = textContent.items.map(item => item.str).join(' ');
 
-                    // Check if consumer number exists on this specific page
                     if (pageText.includes(consumerNum)) {
                         foundPage = pageNum;
                         break;
@@ -132,44 +124,61 @@
                 loadingDiv.style.display = 'none';
 
                 if (foundPage !== -1) {
-                    // Success UI Change
                     resultCard.className = 'result-card found';
-                    resultText.innerHTML = `Bill Extracted Successfully!<br><span style="font-size:13px; color:#28a745;">Consumer Number ${consumerNum} found on Page ${foundPage}</span>`;
+                    resultText.innerHTML = `Bill Extracted Successfully!<br><span style="font-size:14px; color:#28a745; font-weight:bold;">Consumer Number: ${consumerNum}</span><br><span style="font-size:12px; color:#666;">Aapka bill mil gaya hai. Niche click karke sirf apna page download karein.</span>`;
                     actionButtons.style.display = 'flex';
 
-                    // Set action actions
-                    document.getElementById('downloadBtn').onclick = () => extractAndDownload(pdfUrl, foundPage, `Bill_${consumerNum}.pdf`);
-                    document.getElementById('printBtn').onclick = () => extractAndPrint(pdfUrl, foundPage);
+                    // Update buttons to process and isolate exactly 1 page
+                    document.getElementById('downloadBtn').onclick = () => extractSinglePage(pdfUrl, foundPage, `Bill_${consumerNum}.pdf`, 'download');
+                    document.getElementById('printBtn').onclick = () => extractSinglePage(pdfUrl, foundPage, `Bill_${consumerNum}.pdf`, 'print');
                 } else {
                     resultText.innerHTML = "<span style='color:red;'>Sahi Number Dalein ya Data check karein.</span><br><span style='font-size:13px; color:#999;'>Yeh number PDF file mein nahi mila.</span>";
                 }
 
             } catch (error) {
                 loadingDiv.style.display = 'none';
-                resultText.innerHTML = "<span style='color:red;'>Error: PDF file 'bill.pdf' nahi mili.</span>";
+                resultText.innerHTML = "<span style='color:red;'>Error: PDF file 'bill.pdf' nahi mili ya load nahi hui.</span>";
                 console.error(error);
             }
         }
 
-        // Extract single page and trigger download using a simple iframe trick or window print
-        async function extractAndDownload(url, pageNum, filename) {
-            // Since splitting PDF via pure JS requires heavy libraries, we append page parameter
-            // Most modern browsers and drives support #page=X extension directly
-            const pageUrl = `${url}#page=${pageNum}`;
-            const a = document.createElement('a');
-            a.href = pageUrl;
-            a.target = '_blank';
-            a.download = filename;
-            a.click();
-        }
+        // Secure extraction logic: Background process cuts the page and serves fresh 1-page blob
+        async function extractSinglePage(url, pageNumber, filename, mode) {
+            try {
+                const loadingDiv = document.getElementById('loading');
+                loadingDiv.innerText = "Securing and preparing your bill page...";
+                loadingDiv.style.display = 'block';
 
-        function extractAndPrint(url, pageNum) {
-            const pageUrl = `${url}#page=${pageNum}`;
-            const printWindow = window.open(pageUrl, '_blank');
-            if (printWindow) {
-                printWindow.focus();
-                // Triggers browser print on the target page view
-                setTimeout(() => { printWindow.print(); }, 1000);
+                const response = await fetch(url);
+                const pdfBytes = await response.arrayBuffer();
+
+                const srcPdfDoc = await PDFLib.PDFDocument.load(pdfBytes);
+                const targetPdfDoc = await PDFLib.PDFDocument.create();
+
+                const [copiedPage] = await targetPdfDoc.copyPages(srcPdfDoc, [pageNumber - 1]);
+                targetPdfDoc.addPage(copiedPage);
+
+                const newPdfBytes = await targetPdfDoc.save();
+                const blob = new Blob([newPdfBytes], { type: 'application/pdf' });
+                const blobUrl = URL.createObjectURL(blob);
+
+                loadingDiv.style.display = 'none';
+                loadingDiv.innerText = "PDF Scan ho raha hai, kripya thoda intezar karein...";
+
+                if (mode === 'download') {
+                    const a = document.createElement('a');
+                    a.href = blobUrl;
+                    a.download = filename;
+                    a.click();
+                } else if (mode === 'print') {
+                    const printWindow = window.open(blobUrl, '_blank');
+                    if (printWindow) {
+                        printWindow.focus();
+                    }
+                }
+            } catch (e) {
+                alert("Page extract karne mein koi error aaya.");
+                console.error(e);
             }
         }
     </script>
