@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Meter Bill - PGVCL</title>
+    <!-- PDF.js library for scanning pages inside the browser -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background-color: #f4f7fc; color: #333; padding-bottom: 30px; }
+        .header { background: linear-gradient(135deg, #1e3c72, #2a5298); color: white; text-align: center; padding: 40px 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .header h1 { font-size: 26px; font-weight: 600; margin-bottom: 10px; }
+        .header p { font-size: 14px; opacity: 0.9; }
+        .container { max-width: 480px; margin: -20px auto 0 auto; background: white; border-radius: 16px; padding: 25px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
+        .section-title { font-size: 18px; color: #1e3c72; font-weight: 600; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
+        .status-badge { background-color: #e6f4ea; color: #137333; font-size: 12px; padding: 3px 10px; border-radius: 12px; font-weight: 500; }
+        .form-group { margin-bottom: 20px; }
+        .form-group label { display: block; font-size: 14px; font-weight: 500; color: #555; margin-bottom: 8px; }
+        select, input { width: 100%; padding: 12px; border: 1px solid #ced4da; border-radius: 8px; font-size: 15px; outline: none; transition: border 0.2s; }
+        select:focus, input:focus { border-color: #2a5298; }
+        .search-btn { background-color: #1e3c72; color: white; border: none; width: 100%; padding: 14px; font-size: 16px; font-weight: 600; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; transition: background 0.2s; }
+        .search-btn:hover { background-color: #2a5298; }
+        .result-card { border: 2px dashed #ced4da; border-radius: 12px; padding: 30px 20px; text-align: center; margin-top: 25px; background-color: #fafafa; }
+        .result-card.found { border-style: solid; border-color: #28a745; background-color: #f8fff9; }
+        .result-icon { font-size: 48px; margin-bottom: 15px; color: #adb5bd; }
+        .result-card.found .result-icon { color: #28a745; }
+        .result-text { font-size: 15px; color: #6c757d; margin-bottom: 20px; }
+        .result-card.found .result-text { color: #2b5134; font-weight: 500; }
+        .action-buttons { display: flex; flex-direction: column; gap: 10px; }
+        .btn { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; text-decoration: none; width: 100%; }
+        .btn-download { background-color: #007bff; color: white; }
+        .btn-download:hover { background-color: #0056b3; }
+        .btn-print { background-color: #495057; color: white; }
+        .btn-print:hover { background-color: #343a40; }
+        .footer-text { text-align: center; font-size: 12px; color: #888; margin-top: 30px; line-height: 1.8; }
+        #loading { display: none; color: #1e3c72; font-weight: 500; margin-top: 10px; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>Smart Meter Bill - PGVCL</h1>
+        <p>Smart Meter Bill Search and Data Extraction</p>
+    </div>
+
+    <div class="container">
+        <div class="section-title">
+            <span>PDF Search</span>
+            <span class="status-badge">Ready</span>
+        </div>
+
+        <div class="form-group">
+            <label>• Select PDF File</label>
+            <select id="pdfSelect">
+                <option value="bill.pdf">MAR-26 BILLED IN APR-26 bills</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label>• Consumer Number</label>
+            <input type="number" id="consumerNumber" placeholder="Enter 11-digit consumer number">
+        </div>
+
+        <button class="search-btn" onclick="searchPDF()">
+            🔍 Search PDF for Consumer Number
+        </button>
+        
+        <div id="loading">PDF Scan ho raha hai, kripya thoda intezar karein...</div>
+
+        <!-- Result Section -->
+        <div class="result-card" id="resultCard">
+            <div class="result-icon" id="resultIcon">📄</div>
+            <div class="result-text" id="resultText">No bill extracted yet<br><span style="font-size:13px; font-weight:normal; color:#999;">Select PDF file and enter consumer number to search</span></div>
+            
+            <div class="action-buttons" id="actionButtons" style="display: none;">
+                <button class="btn btn-download" id="downloadBtn">📥 Download Bill</button>
+                <button class="btn btn-print" id="printBtn">🖨️ Print Bill</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer-text">
+        Internal Tool • Fast server-side search for instant results<br>
+        Secure & Private • Minimal browser processing
+    </div>
+
+    <script>
+        // Initialize PDF.js worker
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+
+        let targetPageData = null;
+
+        async function searchPDF() {
+            const consumerNum = document.getElementById('consumerNumber').value.trim();
+            const pdfUrl = document.getElementById('pdfSelect').value;
+            const loadingDiv = document.getElementById('loading');
+            const resultCard = document.getElementById('resultCard');
+            const resultText = document.getElementById('resultText');
+            const actionButtons = document.getElementById('actionButtons');
+
+            if (!consumerNum || consumerNum.length !== 11) {
+                alert("Kripya sahi 11-digit Consumer Number dalein.");
+                return;
+            }
+
+            // Reset UI
+            loadingDiv.style.display = 'block';
+            actionButtons.style.display = 'none';
+            resultCard.className = 'result-card';
+            resultText.innerHTML = "Searching...";
+
+            try {
+                // Load the master PDF file
+                const loadingTask = pdfjsLib.getDocument(pdfUrl);
+                const pdf = await loadingTask.promise;
+                let foundPage = -1;
+
+                // Scan through every page of the main PDF
+                for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+                    const page = await pdf.getPage(pageNum);
+                    const textContent = await page.getTextContent();
+                    const pageText = textContent.items.map(item => item.str).join(' ');
+
+                    // Check if consumer number exists on this specific page
+                    if (pageText.includes(consumerNum)) {
+                        foundPage = pageNum;
+                        break;
+                    }
+                }
+
+                loadingDiv.style.display = 'none';
+
+                if (foundPage !== -1) {
+                    // Success UI Change
+                    resultCard.className = 'result-card found';
+                    resultText.innerHTML = `Bill Extracted Successfully!<br><span style="font-size:13px; color:#28a745;">Consumer Number ${consumerNum} found on Page ${foundPage}</span>`;
+                    actionButtons.style.display = 'flex';
+
+                    // Set action actions
+                    document.getElementById('downloadBtn').onclick = () => extractAndDownload(pdfUrl, foundPage, `Bill_${consumerNum}.pdf`);
+                    document.getElementById('printBtn').onclick = () => extractAndPrint(pdfUrl, foundPage);
+                } else {
+                    resultText.innerHTML = "<span style='color:red;'>Sahi Number Dalein ya Data check karein.</span><br><span style='font-size:13px; color:#999;'>Yeh number PDF file mein nahi mila.</span>";
+                }
+
+            } catch (error) {
+                loadingDiv.style.display = 'none';
+                resultText.innerHTML = "<span style='color:red;'>Error: PDF file 'bill.pdf' nahi mili.</span>";
+                console.error(error);
+            }
+        }
+
+        // Extract single page and trigger download using a simple iframe trick or window print
+        async function extractAndDownload(url, pageNum, filename) {
+            // Since splitting PDF via pure JS requires heavy libraries, we append page parameter
+            // Most modern browsers and drives support #page=X extension directly
+            const pageUrl = `${url}#page=${pageNum}`;
+            const a = document.createElement('a');
+            a.href = pageUrl;
+            a.target = '_blank';
+            a.download = filename;
+            a.click();
+        }
+
+        function extractAndPrint(url, pageNum) {
+            const pageUrl = `${url}#page=${pageNum}`;
+            const printWindow = window.open(pageUrl, '_blank');
+            if (printWindow) {
+                printWindow.focus();
+                // Triggers browser print on the target page view
+                setTimeout(() => { printWindow.print(); }, 1000);
+            }
+        }
+    </script>
+</body>
+</html>
