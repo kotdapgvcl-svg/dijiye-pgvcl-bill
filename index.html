@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Smart Meter Bill - PGVCL</title>
+    <!-- Core PDF Libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
     <style>
@@ -53,7 +54,7 @@
         <div class="form-group">
             <label>• Select PDF File</label>
             <select id="pdfSelect">
-                <option value="bill.pdf">MAR-26 BILLED IN APR-26 bills</option>
+                <option value="bill.pdf">April 2026</option>
             </select>
         </div>
 
@@ -68,6 +69,7 @@
         
         <div id="loading">PDF Scan ho raha hai, kripya thoda intezar karein...</div>
 
+        <!-- Result Section -->
         <div class="result-card" id="resultCard">
             <div class="result-icon" id="resultIcon">📄</div>
             <div class="result-text" id="resultText">No bill extracted yet<br><span style="font-size:13px; font-weight:normal; color:#999;">Select PDF file and enter consumer number to search</span></div>
@@ -128,7 +130,6 @@
                     resultText.innerHTML = `Bill Extracted Successfully!<br><span style="font-size:14px; color:#28a745; font-weight:bold;">Consumer Number: ${consumerNum}</span><br><span style="font-size:12px; color:#666;">Aapka bill mil gaya hai. Niche click karke sirf apna page download karein.</span>`;
                     actionButtons.style.display = 'flex';
 
-                    // Update buttons to process and isolate exactly 1 page
                     document.getElementById('downloadBtn').onclick = () => extractSinglePage(pdfUrl, foundPage, `Bill_${consumerNum}.pdf`, 'download');
                     document.getElementById('printBtn').onclick = () => extractSinglePage(pdfUrl, foundPage, `Bill_${consumerNum}.pdf`, 'print');
                 } else {
@@ -142,7 +143,6 @@
             }
         }
 
-        // Secure extraction logic: Background process cuts the page and serves fresh 1-page blob
         async function extractSinglePage(url, pageNumber, filename, mode) {
             try {
                 const loadingDiv = document.getElementById('loading');
